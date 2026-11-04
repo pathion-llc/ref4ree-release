@@ -1,0 +1,24 @@
+# Publishes a release from its uploaded draft, so the release is published by GitHub's own bot.
+name: Publish a release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release to publish
+        required: true
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - run: |
+          gh release download "upload-$TAG" -D pack
+          (cd pack && sha256sum -c ref4ree-linux-x64.tar.gz.sha256)
+          gh release create "$TAG" pack/ref4ree-linux-x64.tar.gz pack/ref4ree-linux-x64.tar.gz.sha256 \
+            --title "Ref4ree $TAG" --notes "The built program for Linux and its fingerprint."
+          gh release delete "upload-$TAG" --yes
