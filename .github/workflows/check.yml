@@ -1,0 +1,88 @@
+# Pathion's central Ref4ree check. A project does not copy this file: its own GitHub check is a few lines that call
+# this one (configs/github-ref4ree-caller.yml), so a change here reaches every project with no change in the project.
+# It is published as .github/workflows/check.yml in pathion-llc/ref4ree-release, Ref4ree's public release repository.
+#
+# Every pushed commit and every pull request from a fork is judged by the same rules as at commit time, including
+# commits made with the hook skipped, and each commit's verdict is shown on the run's summary page. Ref4ree itself is
+# taken from its own releases (the newest one the owner approved on his own device, checked by the release pinned
+# below), never from the project, so no project change can weaken its own judge.
+#
+# The calling project gives: its licence (repository secret REF4REE_LICENCE), the owner's public signing keys
+# (repository variable REF4REE_ALLOWED_SIGNERS), and what its tests need (the inputs below).
+name: Ref4ree
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js for the project's tests, for example lts/* or 24; empty for none"
+        type: string
+        default: ""
+      setup:
+        description: "Shell lines that install what the project's tests need, run in the project's folder"
+        type: string
+        default: ""
+    secrets:
+      REF4REE_LICENCE:
+        required: false
+# it only reads the repository: no write rights for anything the project's tests run
+permissions:
+  contents: read
+jobs:
+  ref4ree:
+    # a branch of the project is judged once, on push; a pull request runs it only when it comes from a fork, whose
+    # commits never reach the project by push
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        if: inputs.node-version != ''
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Install what the project's tests need
+        if: inputs.setup != ''
+        env:
+          SETUP: ${{ inputs.setup }}
+        run: bash -e -c "$SETUP"
+      - name: Fetch Ref4ree and judge every commit
+        # after the project's setup, in one step, so nothing the setup runs can replace Ref4ree once it is checked.
+        # The release pinned here is downloaded from Ref4ree's public releases and run only if its fingerprint matches.
+        # It then looks for a newer release the owner approved on his own device, and runs that one instead; one he
+        # did not approve never runs.
+        env:
+          RELEASE: "v2026.11.06-10f88b5"
+          SOURCE: "10f88b5d31861e7d4dbd70c0aa26926500db5baa"
+          FINGERPRINT: "4fac8bd10d13687bd8a51da0b31f6067535302b7e67d9c03265e46b7c84b549d"
+          REF4REE_ALLOWED_SIGNERS: ${{ vars.REF4REE_ALLOWED_SIGNERS }}
+          REF4REE_LICENCE: ${{ secrets.REF4REE_LICENCE }}
+        run: |
+          from="https://github.com/pathion-llc/ref4ree-release/releases/download/$RELEASE"
+          curl -fsSL -o "$RUNNER_TEMP/ref4ree.tar.gz" "$from/ref4ree-linux-x64.tar.gz"
+          echo "$FINGERPRINT  $RUNNER_TEMP/ref4ree.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/ref4ree" && tar -xzf "$RUNNER_TEMP/ref4ree.tar.gz" -C "$RUNNER_TEMP/ref4ree"
+          ref4ree="$RUNNER_TEMP/ref4ree/ref4ree.bin"
+          if newer=$(REF4REE_RELEASES_TOKEN="${{ github.token }}" "$ref4ree" newest-release "$RUNNER_TEMP/ref4ree-newest" "$RELEASE"); then
+            ref4ree="$newer"
+            echo "Judged by the newest Ref4ree release the owner approved." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Judged by Ref4ree $RELEASE, the release this check pins: no newer release approved on the owner's device was found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          git config user.name ref4ree && git config user.email ref4ree@localhost
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"; head="${{ github.event.pull_request.head.sha }}"
+          else
+            base="${{ github.event.before }}"; head="${{ github.sha }}"
+          fi
+          "$ref4ree" ci "$PWD" "$base" "$head" --summary "$GITHUB_STEP_SUMMARY" --record ref4ree-record.jsonl
+      # every judgment kept with the run, refused ones too (Actions > the run > Artifacts)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ref4ree-record
+          path: ref4ree-record.jsonl
+          if-no-files-found: ignore
