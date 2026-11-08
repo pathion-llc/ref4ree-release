@@ -55,9 +55,9 @@ jobs:
         # It then looks for a newer release the owner approved on his own device, and runs that one instead; one he
         # did not approve never runs.
         env:
-          RELEASE: "v2026.11.08-3611a94"
-          SOURCE: "3611a94dd6c72bb7ac5704390b9b73cd83dd45ab"
-          FINGERPRINT: "b56831fce6bdc5d3b3d5622f8b9e4b5d6cd40545dd196ba5d8332fbb2f8b9c83"
+          RELEASE: "v2026.11.08-9e03566"
+          SOURCE: "9e035660c0d726e358886c9a02f554156fdebb00"
+          FINGERPRINT: "23bb72fe75320fcbb174dbf5704b0a6d0cf21dced15fb3412d8bca14ea1d8688"
           REF4REE_ALLOWED_SIGNERS: ${{ vars.REF4REE_ALLOWED_SIGNERS }}
           REF4REE_LICENCE: ${{ secrets.REF4REE_LICENCE }}
         run: |
