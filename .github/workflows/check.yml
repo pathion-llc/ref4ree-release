@@ -62,7 +62,7 @@ jobs:
           REF4REE_LICENCE: ${{ secrets.REF4REE_LICENCE }}
         run: |
           from="https://github.com/pathion-llc/ref4ree-release/releases/download/$RELEASE"
-          curl -fsSL -o "$RUNNER_TEMP/ref4ree.tar.gz" "$from/ref4ree-linux-x64.tar.gz"
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "$RUNNER_TEMP/ref4ree.tar.gz" "$from/ref4ree-linux-x64.tar.gz"
           echo "$FINGERPRINT  $RUNNER_TEMP/ref4ree.tar.gz" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/ref4ree" && tar -xzf "$RUNNER_TEMP/ref4ree.tar.gz" -C "$RUNNER_TEMP/ref4ree"
           ref4ree="$RUNNER_TEMP/ref4ree/ref4ree.bin"
